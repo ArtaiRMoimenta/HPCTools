@@ -28,6 +28,7 @@ int my_dgesv(int n, int nrhs, double *a, double *b)
                 max_val = fabs(a(i,k));
                 pivote_fila = i;
               }
+  //            printf("\n El pivote fila es %d\n",pivote_fila);
             }
 
         // SubMain_2: Verificar error si el pivote es muy cercano a cero
@@ -39,7 +40,7 @@ int my_dgesv(int n, int nrhs, double *a, double *b)
 
         // SubMain_3: Intercambiamos filas en la matriz del sistema si el pivote no esta en la fila k
             if (pivote_fila != k){
-              for (int j=k;j<n;j++){
+              for (int j=0;j<n;j++){
                 double tmp = a(k,j);
                 a(k,j)=a(pivote_fila,j);
                 a(pivote_fila,j)=tmp;
@@ -63,6 +64,8 @@ int my_dgesv(int n, int nrhs, double *a, double *b)
               b(i,j) = b(i,j)-mik * b(k,j);
             } 
         }
+
+    } 
         
         // Substitucion hacia atras
         for (int col = 0; col < nrhs; col++) {   // bucle del vector b (normal nrhs=1)
@@ -75,7 +78,7 @@ int my_dgesv(int n, int nrhs, double *a, double *b)
           }
         }
         
-      }
+      
 
   return 0;
 }
