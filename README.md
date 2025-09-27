@@ -32,5 +32,6 @@
 4. You must provide access to your remote repo to the two teachers of
     HPCTools: Diego Andrade and Emilio J. Padrón
 
-5. Artai Rodríguez Moimenta remote repo for HPCTools
-    git clone https://github.com/ArtaiRMoimenta/HPCTools.git
+5. Artai Rodríguez Moimenta remote repo for HPCTools:
+
+      git clone https://github.com/ArtaiRMoimenta/HPCTools.git
