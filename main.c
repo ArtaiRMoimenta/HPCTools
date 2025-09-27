@@ -1,84 +1,138 @@
-#include "dgesv.h"
+//#include <lapacke.h>
+#include <openblas/lapacke.h>
+//#include <mkl_lapacke.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <math.h>
+#include <string.h>
+#include <unistd.h>
+#include "timer.h"
+#include "dgesv.h"
 
-int my_dgesv(int n, int nrhs, double *a, double *b)
+double *generate_matrix(unsigned int size, unsigned int seed)
 {
-  /* add/change the arguments according to your implementation needs */
+  unsigned int i;
+  double *matrix = (double *) malloc(sizeof(double) * size * size);
 
-  // [...] Write your implementation here
+  srand(seed);
 
-  // Definicion de macros para notacion de matrices
-  #define a(i,j) a[(i)*n + (j)]
-  #define b(i,j) b[(i)*nrhs + (j)]
+  for (i = 0; i < size * size; i++) {
+    matrix[i] = rand() % 100;
+  }
+
+  return matrix;
+}
+
+double *duplicate_matrix(double *orig, unsigned int size)
+{
+  double *replica = (double *) malloc(sizeof(double) * size * size);
+
+  memcpy((void *) replica, (void *) orig, size * size * sizeof(double));
+
+  return replica;
+}
+
+int is_nearly_equal(double x, double y)
+{
+  const double epsilon = 1e-5 /* some small number */;
+  return fabs(x - y) <= epsilon * fabs(x);
+  // see Knuth section 4.2.2 pages 217-218
+}
+
+unsigned int check_result(double *bref, double *b, unsigned int size)
+{
+  unsigned int i;
+
+  for(i = 0; i < size*size; i++) {
+    if (!is_nearly_equal(bref[i], b[i]))
+      return 0;
+  }
+
+  return 1;
+}
+
+int main(int argc, char *argv[])
+{
+  if (argc < 2) {
+    printf("You need to provide a matrix size (e.g. 1024 for use 1024x1024 matrices)\n");
+
+    return 1;
+  }
+
+  int size = atoi(argv[1]);
+
+  double *a, *aref;
+  double *b, *bref;
+
+  a = generate_matrix(size, 1);
+  b = generate_matrix(size, 2);
+  aref = duplicate_matrix(a, size);
+  bref = duplicate_matrix(b, size);
 
 
-  // Verificar si tiene sentido el sistema de ecuaciones y reportar error
-  if (n <= 0 || nrhs <= 0 || a == NULL || b == NULL)
-  return -1;
+//  printf("\n--- Matriz a del sistema ---\n");
+  //  for (int i = 0; i < size; i++) {
+    //  for (int j = 0; j < size; j++) {
+      //  printf("%10.5f ", a[i*size + j]);
+       // }
+     // printf("\n");
+   // }
 
-  // Main: Eliminacion hacia adelante con pivoteo parcial
 
-    for (int k = 0; k < n - 1; k++) {
-        // SubMain_1: Buscar fila con maximo valor absoluto en la columna k para evitar 0 en el pivote
-          int pivote_fila = k;
-          double max_val = fabs(a(k,k));
-            for (int i = k + 1; i < n; i++) {
-              if (fabs(a(i,k)) > max_val) {
-                max_val = fabs(a(i,k));
-                pivote_fila = i;
-              }
-  //            printf("\n El pivote fila es %d\n",pivote_fila);
-            }
+ // printf("\n--- Matriz b del sistema ---\n");
+   // for (int i = 0; i < size; i++) {
+     // for (int j = 0; j < size; j++) {
+       // printf("%10.5f ", b[i*size + j]);
+       // }
+     // printf("\n");
+   // }
 
-        // SubMain_2: Verificar error si el pivote es muy cercano a cero
-            double tol = 1e-8;
-            if (fabs(a(pivote_fila,k)) < tol){
-              printf("Error! El pivote de la columna %d está muy cerca de 0\n", k);
-              return -1;
-            }
 
-        // SubMain_3: Intercambiamos filas en la matriz del sistema si el pivote no esta en la fila k
-            if (pivote_fila != k){
-              for (int j=0;j<n;j++){
-                double tmp = a(k,j);
-                a(k,j)=a(pivote_fila,j);
-                a(pivote_fila,j)=tmp;
-              }
-            //Lo mismo para la matriz b usando nrhs=number of rigth hand size 
-              for (int j=0;j<nrhs;j++){
-                double tmp = b(k,j);
-                b(k,j)=b(pivote_fila,j);
-                b(pivote_fila,j)=tmp;
-              }
-            }
-         
-        // SubMain_4: Algoritmo de eliminacion de Gauss
-        for (int i = k + 1; i < n; i++){
-          double mik = a(i,k) / a(k,k);
-            a(i,k) = 0.0;
-            for (int j = k+1; j<n;j++){
-              a(i,j) = a(i,j)-mik * a(k,j);
-            } 
-            for (int j = 0; j<nrhs;j++){
-              b(i,j) = b(i,j)-mik * b(k,j);
-            } 
-        }
+  //
+  // Using LAPACK dgesv OpenBLAS implementation to solve the system
+  //
+  int n = size, nrhs = size, lda = size, ldb = size, info;
+  int *ipiv = (int *) malloc(sizeof(int) * size);
 
-    } 
-        
-        // Substitucion hacia atras
-        for (int col = 0; col < nrhs; col++) {   // bucle del vector b (normal nrhs=1)
-          for (int i = n - 1; i >= 0; i--) {     // Ultima fila del sistema
-            double sum = b(i,col);              // Guardamos en sum el termino ind de b 
-              for (int j = i + 1; j < n; j++) {
-                sum = sum - a(i,j) * b(j,col);   // Sustituye (cuando entra el bucle por el anterior)
-              }
-            b(i,col) = sum / a(i,i); // divido por su coeficiente de la matriz 
-          }
-        }
-        
-      
+  timeinfo start, now;
+  timestamp(&start);
+
+  info = LAPACKE_dgesv(LAPACK_ROW_MAJOR, n, nrhs, aref, lda, ipiv, bref, ldb);
+
+  timestamp(&now);
+  printf("Time taken by Lapacke dgesv: %ld ms\n", diff_milli(&start, &now));
+
+
+  //
+  // Using your own solver based on Gauss or Gauss-Jordan elimination
+  //
+  timestamp(&start);
+
+  info = my_dgesv(n, nrhs, a, b /* add/change the parameters according to your implementation needs */);
+
+  timestamp(&now);
+  printf("Time taken by my dgesv solver: %ld ms\n", diff_milli(&start, &now));
+
+  if (check_result(bref, b, size) == 1)
+    printf("Result is ok!\n");
+  else
+    printf("Result is wrong!\n");
+
+ // printf("\n--- Solución LAPACK ---\n");
+   // for (int i = 0; i < size; i++) {
+     // for (int j = 0; j < size; j++) {
+       // printf("%10.5f ", bref[i*size + j]);
+       // } 
+     // printf("\n");
+   // }
+
+ // printf("\n--- Solución My_dgesv ---\n");
+   // for (int i = 0; i < size; i++) {
+     // for (int j = 0; j < size; j++) {
+       // printf("%10.5f ", b[i*size + j]);
+       // }
+   // printf("\n");
+   // }
 
   return 0;
 }
